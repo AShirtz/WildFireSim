@@ -13,17 +13,17 @@ public class Node : TreeObj {
 	 * 	TREEOBJ MEMBERS
 	 * ******************/
 	
-	public override Tile getTile (CanAddr cAddr, int aggLev) {
-		int childIndex = (int) cAddr.getTuple(aggLev);
+	public override Tile getTile (CanAddr cAddr) {
+		int childIndex = (int) cAddr.getTuple(this.aggLev - 1);
 
 		if (children[childIndex] == null) {
-			if (aggLev == 0) {
-				children[childIndex] = new Tile (this, childIndex, aggLev);
+			if (this.aggLev == 1) {
+				children[childIndex] = new Tile (this, childIndex);
 			}
-			else { children[childIndex] = new Node(this, childIndex, aggLev); }
-			this.children[childIndex].acceptState(this.childState[childIndex]);
+			else { children[childIndex] = new Node(this, childIndex); }
+			this.children[childIndex].inheritState(this.childState[childIndex]);
 		}
-		return children[childIndex].getTile(cAddr, aggLev-1);
+		return children[childIndex].getTile(cAddr);
 	}
 
 	public override void removalRequest (int childIndex) {
@@ -32,7 +32,7 @@ public class Node : TreeObj {
 		bool livingChildren = false;
 		for (int i = 0; i < NUM_CHILDREN; i++) 		{ livingChildren = livingChildren | (this.children[i] != null); }
 
-		if (!livingChildren && this.homogeneousChildrenCheck() && this.prnt != null) { this.prnt.removalRequest(this.addr.getTuple(this.aggregateLevel)); }
+		if (!livingChildren && this.homogeneousChildrenCheck() && this.prnt != null) { this.prnt.removalRequest(this.addr.getTuple(this.aggLev)); }
 	}
 
 	// NOTE: I don't need to update my state here, as I will be notified of any child state change
@@ -50,11 +50,29 @@ public class Node : TreeObj {
 	
 	public override void notifyStateChange (int childIndex, byte childState) {
 		this.childState[childIndex] = childState;
-		if (this.homogeneousChildrenCheck() && this.prnt != null) { this.prnt.notifyStateChange(this.addr.getTuple(this.aggregateLevel), this.childState[0]); }
+		if (this.homogeneousChildrenCheck() && this.prnt != null) { this.prnt.notifyStateChange(this.addr.getTuple(this.aggLev), this.childState[0]); }
 	}
 
-	public override void acceptState (byte state) {
+	public override void inheritState (byte state) {
 		for (int i = 0; i < NUM_CHILDREN; i++) { this.childState[i] = state; }
+	}
+
+	public override void setState (CanAddr cAddr, byte state) {
+		int childIndex = (int) cAddr.getTuple(this.aggLev - 1);
+
+		if (children[childIndex] == null) {
+			if (this.aggLev == 1) {
+				this.childState[childIndex] = state;
+			}
+			else {
+				this.children[childIndex] = new Node (this, childIndex);
+				this.children[childIndex].inheritState (this.childState[childIndex]);
+				this.children[childIndex].setState(cAddr, state);
+			}
+		}
+		else {
+			children[childIndex].setState(cAddr, state);
+		}
 	}
 
 	/* ******************
@@ -62,20 +80,20 @@ public class Node : TreeObj {
 	 * ******************/
 
 	private TreeObj[] children = new TreeObj[NUM_CHILDREN];
-	private int aggregateLevel;
 	
 	private byte[] childState = new byte[NUM_CHILDREN];
 	
 	public Node () {
 		this.prnt = null;
 		this.addr = new CanAddr();
+		this.aggLev = Config.TREE_DEPTH;
 	}
 	
-	public Node (Node prnt, int nextTuple, int aggLev) {
+	public Node (TreeObj prnt, int nextTuple) {
 		this.prnt = prnt;
 		this.addr = new CanAddr(prnt.Address);
+		this.aggLev = prnt.AggregateLevel - 1;
 		this.addr.setTuple((byte) nextTuple, aggLev);
-		this.aggregateLevel = aggLev;
 	}
 
 	private bool homogeneousChildrenCheck () {

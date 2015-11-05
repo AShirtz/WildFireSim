@@ -7,10 +7,11 @@ public class Tile : TreeObj {
 	 * 	STATIC MEMBERS
 	 * ******************/
 
-	public static byte FIRE_MASK 			= 0x01;
-	public static byte BURN_MASK 			= 0x02;
-	public static byte WETTED_MASK 			= 0x04;
-	public static byte INCOMBUSTIBLE_MASK	= 0x08;
+	public static readonly byte FIRE_MASK 				= 0x01;
+	public static readonly byte BURN_MASK 				= 0x02;
+	public static readonly byte WETTED_MASK 			= 0x04;
+	public static readonly byte INCOMBUSTIBLE_MASK		= 0x08;
+	public static readonly byte OUTSIDE_TERRAIN_MASK	= 0x16;
 
 	public static int NUM_NEIGHBORS = 12;
 	
@@ -52,7 +53,7 @@ public class Tile : TreeObj {
 
 
 
-	public override Tile getTile (CanAddr cAddr, int depth) {
+	public override Tile getTile (CanAddr cAddr) {
 		return this;
 	}
 
@@ -67,7 +68,10 @@ public class Tile : TreeObj {
 			if (this.curFuel <= 0) { this.extinguishTile(); }
 		}
 
-		if (prevStatus != this.state) { this.prnt.notifyStateChange(this.addr.getTuple(0), this.state); }
+		if (prevStatus != this.state) {
+			this.prnt.notifyStateChange(this.addr.getTuple(this.aggLev), this.state);
+			Simulation.postVisBoundChange(new StateChangeEvent(new CanAddr(this.addr), this.state));
+		}
 	}
 
 	public override void updateProperties () {
@@ -84,8 +88,13 @@ public class Tile : TreeObj {
 		}
 	}
 
-	public override void acceptState (byte state) {
+	public override void inheritState (byte state) {
 		this.state = state;
+	}
+
+	public override void setState (CanAddr cAddr, byte state) {
+		this.state = state;
+		this.prnt.notifyStateChange(this.addr.getTuple(this.aggLev), this.state);
 	}
 
 	// Both of these methods should be NO-OPS.
@@ -100,7 +109,7 @@ public class Tile : TreeObj {
 	public void notifyReferenceRemoval (int index) {
 		this.inRef = (ushort) (this.inRef & ~(0x01 << index));
 
-		if (this.inRef == 0 && !this.isOnFire()) { this.prnt.removalRequest(this.addr.getTuple(0)); }
+		if (this.inRef == 0 && !this.isOnFire()) { this.prnt.removalRequest(this.addr.getTuple(this.aggLev)); }
 	}
 
 
@@ -111,16 +120,20 @@ public class Tile : TreeObj {
 	Tile[] outRef	= new Tile[NUM_NEIGHBORS];
 	ushort inRef = 0x0000;
 
+	private float elevation;
+
 	private byte state = 0x00;
 	
 	// The below are placeholders until the ignition PDE is better understood
 	public float curTemp = 0f;
 	float curFuel = 100f;
 
-	public Tile (TreeObj prnt, int nextTuple, int depth) {
+	public Tile (TreeObj prnt, int nextTuple) {
 		this.prnt = prnt;
 		this.addr = new CanAddr(prnt.Address);
-		this.addr.setTuple((byte) nextTuple, depth);
+		this.aggLev = prnt.AggregateLevel - 1;
+		this.addr.setTuple((byte) nextTuple, this.aggLev);
+		this.elevation = Simulation.getHeightForPos(Simulation.convertSimToTerrain(LatAddr.convertLatAddrToVector(CanAddr.convertCanAddrToLatAddr(this.addr))));
 	}
 
 	public bool isOnFire () {
@@ -139,6 +152,10 @@ public class Tile : TreeObj {
 		return (this.state & Tile.INCOMBUSTIBLE_MASK) != 0;
 	}
 
+	public bool isOutsideTerrain () {
+		return (this.state & Tile.OUTSIDE_TERRAIN_MASK) != 0;
+	}
+
 	// This method should not be called directly
 	// Instead, change the properties to be the desired values and then call updateState
 	public void igniteTile () {
@@ -155,28 +172,6 @@ public class Tile : TreeObj {
 			this.outRef[i] = SpaceTree.getTile(CanAddr.convertLatAddrToCanAddr(nAddr));
 			this.outRef[i].notifyReferenceAddition(i);
 		}
-
-		// TODO: This code is temporary, just to visualize growth
-		/*
-		float[,,] map = new float[2, 2, 3];
-		
-		for (int i = 0; i < 2; i++) {
-			for (int j = 0; j < 2; j++) {
-				map[i,j,0] = 0;
-				map[i,j,1] = 1;
-				map[i,j,2] = 0;
-			}
-		}
-		
-		Vector2 loc = LatAddr.convertLatAddrToVector(CanAddr.convertCanAddrToLatAddr(this.addr));
-		
-		loc *= 2;
-		
-		loc.x += Terrain.activeTerrain.terrainData.alphamapWidth / 2;
-		loc.y += Terrain.activeTerrain.terrainData.alphamapHeight / 2;
-		
-		Terrain.activeTerrain.terrainData.SetAlphamaps (Mathf.RoundToInt(loc.x) - 1, Mathf.RoundToInt(loc.y) - 1, map);
-		*/
 	}
 
 	// This method should not be called directly
@@ -197,27 +192,5 @@ public class Tile : TreeObj {
 			if (this.outRef[i] != null) { this.outRef[i].notifyReferenceRemoval(i); }
 			this.outRef[i] = null;
 		}
-
-		// TODO: This code is temporary, just to visualize growth
-		/*
-		float[,,] map = new float[2, 2, 3];
-
-		for (int i = 0; i < 2; i++) {
-			for (int j = 0; j < 2; j++) {
-				map[i,j,0] = 0;
-				map[i,j,1] = 0;
-				map[i,j,2] = 1;
-			}
-		}
-
-		Vector2 loc = LatAddr.convertLatAddrToVector(CanAddr.convertCanAddrToLatAddr(this.addr));
-
-		loc *= 2;
-
-		loc.x += Terrain.activeTerrain.terrainData.alphamapWidth / 2;
-		loc.y += Terrain.activeTerrain.terrainData.alphamapHeight / 2;
-
-		Terrain.activeTerrain.terrainData.SetAlphamaps (Mathf.RoundToInt(loc.x) - 1, Mathf.RoundToInt(loc.y) - 1, map);
-		*/
 	}
 }

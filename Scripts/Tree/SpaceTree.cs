@@ -7,7 +7,7 @@ public class SpaceTree {
 
 	public static Tile getTile (CanAddr cAddr) {
 		if (rootNode == null) { rootNode = new Node(); }
-		return rootNode.getTile(cAddr, Config.TREE_DEPTH - 1);
+		return rootNode.getTile(cAddr);
 	}
 
 	public static void updateState () {
@@ -18,5 +18,10 @@ public class SpaceTree {
 	public static void updateProperties () {
 		if (rootNode == null) { rootNode = new Node(); }
 		rootNode.updateProperties();
+	}
+
+	public static void setState (CanAddr cAddr, byte state) {
+		if (rootNode == null) { rootNode = new Node(); }
+		rootNode.setState(cAddr, state);
 	}
 }

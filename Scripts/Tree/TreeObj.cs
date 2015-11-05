@@ -5,6 +5,7 @@ public abstract class TreeObj {
 
 	protected TreeObj prnt;
 	protected CanAddr addr;
+	protected int aggLev;
 
 	public CanAddr Address
 	{
@@ -16,7 +17,12 @@ public abstract class TreeObj {
 		get { return this.prnt; }
 	}
 
-	public abstract Tile getTile (CanAddr cAddr, int depth);
+	public int AggregateLevel
+	{
+		get { return this.aggLev; }
+	}
+
+	public abstract Tile getTile (CanAddr cAddr);
 
 	public abstract void removalRequest (int childIndex);
 
@@ -30,5 +36,6 @@ public abstract class TreeObj {
 	//  [3]: isInCombustible
 	//  [4-7]: Currently Unused
 	public abstract void notifyStateChange (int childIndex, byte childStatus);
-	public abstract void acceptState (byte state);
+	public abstract void inheritState (byte state);
+	public abstract void setState (CanAddr cAddr, byte state);
 }
