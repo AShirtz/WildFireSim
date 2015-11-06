@@ -5,18 +5,11 @@ using System.Collections.Generic;
 
 // This script handles the necessary simulation functions and threading behaviors
 public class Simulation : MonoBehaviour {
-
-	// TODO: What this class needs is:
-	/*
-	 * 1. Create Tree and both SimBoundEvent and VisBoundEvent double buffers		DONE
-	 * 2. Create a worker thread and that runs one time step of the simulation then waits for the synchronization coroutine		DONE
-	 * 3. Create Synchronization coroutine		DONE
-	 */
-
+	
 	public static readonly float timeStep = 0.3f;
 	
 	// TODO: Some other event should ignite the starting tile and set this to be true
-	private static volatile bool simRunning = true;
+	public static volatile bool simRunning = true;
 	private static readonly AutoResetEvent simSync = new AutoResetEvent(false);
 
 	private static HashSet <StateChangeEvent> [] visDBuf = new HashSet<StateChangeEvent> [2];
